@@ -1,0 +1,9 @@
+[workspace]
+
+members = [
+    "tools",
+    "tools-backup",
+    "tools-papers",
+    "tools-utils",
+]
+

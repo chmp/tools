@@ -1,0 +1,17 @@
+[package]
+name = "tools-papers"
+description = "A helper to organize a collection of papers and normalize filenames"
+version = "0.1.0"
+authors = ["Christopher Prohm"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+regex = "1"
+lazy_static = "1.4.0"
+reqwest = { version = "0.10", features = ["blocking"] }
+tools-utils = { path = "../tools-utils" }
+
+[target.'cfg(unix)'.dependencies]
+openssl = { version = "0.10" , features = ["vendored"] }
