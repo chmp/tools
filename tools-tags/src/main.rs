@@ -20,7 +20,8 @@ fn main() -> Result<()> {
         panic!("Wrong arguments: tag-browser DIRECTORY");
     }
 
-    let tags = find_all_tags(&args[1]);
+    let root = PathBuf::from(&args[1]);
+    let tags = find_all_tags(&root);
     let mut tags_by_name = HashMap::<String, Vec<TaggedEntry>>::new();
 
     for tag in tags {
@@ -46,7 +47,7 @@ fn sorted(tags_by_name: HashMap<String, Vec<TaggedEntry>>) -> Vec<(String, Vec<T
 }
 
 // TODO: use path instead of str
-fn find_all_tags(root: &str) -> impl Iterator<Item = Result<TaggedEntry>> {
+fn find_all_tags(root: &Path) -> impl Iterator<Item = Result<TaggedEntry>> {
     let mut path_iter = collect_mardown_documents(root);
     let mut current_tags: Option<Vec<TaggedEntry>> = None;
 
@@ -79,7 +80,7 @@ fn find_all_tags(root: &str) -> impl Iterator<Item = Result<TaggedEntry>> {
     })
 }
 
-fn collect_mardown_documents(root: &str) -> impl Iterator<Item = Result<PathBuf>> {
+fn collect_mardown_documents(root: &Path) -> impl Iterator<Item = Result<PathBuf>> {
     fn is_non_hidden(entry: &DirEntry) -> bool {
         entry
             .file_name()
