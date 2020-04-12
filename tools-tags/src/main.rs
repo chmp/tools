@@ -8,7 +8,7 @@ use std::{
 
 use lazy_static::lazy_static;
 use regex::Regex;
-use walkdir::{DirEntry, Result as WalkdirResult, WalkDir};
+use walkdir::{DirEntry, WalkDir};
 
 use tools_utils::{Error, Result};
 
@@ -47,25 +47,13 @@ fn sorted(tags_by_name: HashMap<String, Vec<TaggedEntry>>) -> Vec<(String, Vec<T
 
 // TODO: use path instead of str
 fn find_all_tags(root: &str) -> impl Iterator<Item = Result<TaggedEntry>> {
-    let path_iter = collect_mardown_documents(root);
-    TaggedEntryIterator {
-        path_iter,
-        current_tags: None,
-    }
-}
+    let mut path_iter = collect_mardown_documents(root);
+    let mut current_tags: Option<Vec<TaggedEntry>> = None;
 
-struct TaggedEntryIterator<I: Iterator<Item = Result<PathBuf>>> {
-    path_iter: I,
-    current_tags: Option<Vec<TaggedEntry>>,
-}
-
-impl<I: Iterator<Item = Result<PathBuf>>> Iterator for TaggedEntryIterator<I> {
-    type Item = Result<TaggedEntry>;
-
-    fn next(&mut self) -> Option<Result<TaggedEntry>> {
+    std::iter::from_fn(move || -> Option<Result<TaggedEntry>> {
         loop {
-            if self.current_tags.is_none() {
-                let path = match self.path_iter.next()? {
+            if current_tags.is_none() {
+                let path = match path_iter.next()? {
                     Err(e) => return Some(Err(e)),
                     Ok(path) => path,
                 };
@@ -75,20 +63,20 @@ impl<I: Iterator<Item = Result<PathBuf>>> Iterator for TaggedEntryIterator<I> {
                     Ok(tags) => tags,
                 };
 
-                self.current_tags = Some(tags);
+                current_tags = Some(tags);
             }
-            let current_tags = self.current_tags.as_mut().unwrap();
+            let current_tags_vec = current_tags.as_mut().unwrap();
 
-            let tag = match current_tags.pop() {
+            let tag = match current_tags_vec.pop() {
                 None => {
-                    self.current_tags = None;
+                    current_tags = None;
                     continue;
                 }
                 Some(tag) => tag,
             };
             return Some(Ok(tag));
         }
-    }
+    })
 }
 
 fn collect_mardown_documents(root: &str) -> impl Iterator<Item = Result<PathBuf>> {
@@ -99,20 +87,10 @@ fn collect_mardown_documents(root: &str) -> impl Iterator<Item = Result<PathBuf>
             .map(|s| !s.starts_with('.'))
             .unwrap_or(true)
     }
-    let walker = WalkDir::new(root).into_iter().filter_entry(is_non_hidden);
-    MarkdownIterator { iter: walker }
-}
-
-struct MarkdownIterator<I: Iterator<Item = WalkdirResult<DirEntry>>> {
-    iter: I,
-}
-
-impl<I: Iterator<Item = WalkdirResult<DirEntry>>> Iterator for MarkdownIterator<I> {
-    type Item = Result<PathBuf>;
-
-    fn next(&mut self) -> Option<Result<PathBuf>> {
+    let mut walker = WalkDir::new(root).into_iter().filter_entry(is_non_hidden);
+    std::iter::from_fn(move || -> Option<Result<PathBuf>> {
         loop {
-            let entry = self.iter.next()?;
+            let entry = walker.next()?;
 
             let entry = match entry {
                 Err(e) => return Some(Err(Error::from(format!("Cannot read dir entry: {}", e)))),
@@ -131,7 +109,7 @@ impl<I: Iterator<Item = WalkdirResult<DirEntry>>> Iterator for MarkdownIterator<
             let result = entry.path().to_owned();
             return Some(Ok(result));
         }
-    }
+    })
 }
 
 fn parse_file(path: &Path) -> Result<Vec<TaggedEntry>> {
