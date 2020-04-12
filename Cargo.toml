@@ -4,6 +4,6 @@ members = [
     "tools",
     "tools-backup",
     "tools-papers",
+    "tools-tags",
     "tools-utils",
 ]
-

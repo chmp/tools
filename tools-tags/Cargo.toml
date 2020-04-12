@@ -1,0 +1,13 @@
+[package]
+name = "tools-tags"
+version = "0.1.0"
+authors = ["Christopher Prohm <mail@cprohm.de>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+walkdir = "2"
+regex = "1"
+lazy_static = "1.4.0"
+tools-utils = { path = "../tools-utils" }
