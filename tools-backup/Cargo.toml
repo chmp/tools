@@ -7,4 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = "2.33.0"
+tools-utils = { path = "../tools-utils" }
+
+clap = "2"
+glob = "0.3.0"
+tempfile = "3"
+utime = "0.2"
+walkdir = "2"
