@@ -1,4 +1,3 @@
-
 pub fn run_main(main: fn() -> Result<i32>) {
     match main() {
         Err(message) => {
@@ -17,7 +16,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 impl<'a> From<&'a str> for Error {
     fn from(message: &'a str) -> Error {
-        Error { message: message.to_owned() }
+        Error {
+            message: message.to_owned(),
+        }
     }
 }
 

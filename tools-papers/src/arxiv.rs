@@ -1,8 +1,8 @@
 //! Helper to handle papers from arxiv
 //!
-use std::collections::HashMap;
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::collections::HashMap;
 
 /// Return true if the passed string is the filename of an arXiv paper
 pub fn is_arxiv_paper(s: &str) -> bool {

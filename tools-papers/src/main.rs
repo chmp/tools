@@ -2,13 +2,13 @@ mod arxiv;
 
 use lazy_static::lazy_static;
 use regex::Regex;
+use reqwest::header::USER_AGENT;
 use std::{
     env,
     path::{Path, PathBuf},
     thread,
     time::Duration,
 };
-use reqwest::header::USER_AGENT;
 use tools_utils::{run_main, Result};
 
 use arxiv::{is_arxiv_paper, parse_arxiv_metadata};
@@ -53,7 +53,10 @@ where
 {
     let root = root.as_ref();
     let target = target.as_ref();
-    for entry in root.read_dir().map_err(|e| format!("Cannot read directory: {}", e))? {
+    for entry in root
+        .read_dir()
+        .map_err(|e| format!("Cannot read directory: {}", e))?
+    {
         let entry = entry.map_err(|e| format!("Cannot read item information: {}", e))?;
         let path = entry.path();
 
@@ -65,17 +68,20 @@ where
                 // TODO: port to API and use xml response instead of parsing text format
                 // let url = format!("http://export.arxiv.org/api/query?id_list={}", id);
                 let url = format!("https://export.arxiv.org/abs/{}?fmt=txt", id);
-                
+
                 let client = reqwest::blocking::Client::new();
-                let metadata = client.get(&url)
+                let metadata = client
+                    .get(&url)
                     .header(USER_AGENT, "ArxivPaperTools/1.0")
                     .send()
                     .and_then(|r| r.text())
                     .map_err(|e| format!("Error during download of metadata: {}", e))?;
-                
-                let metadata = parse_arxiv_metadata(&metadata)
-                    .ok_or_else(|| format!("Cannot parse metadata for {}. \n===\n{}", id, metadata))?;
-                let new_path = metadata.get("Title")
+
+                let metadata = parse_arxiv_metadata(&metadata).ok_or_else(|| {
+                    format!("Cannot parse metadata for {}. \n===\n{}", id, metadata)
+                })?;
+                let new_path = metadata
+                    .get("Title")
                     .ok_or_else(|| format!("Missing title meta data for {}", id))?;
                 let new_path = normalize_title(new_path);
                 let new_path = format!("{}_{}.pdf", id, new_path);
