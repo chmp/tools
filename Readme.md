@@ -12,3 +12,10 @@ Current helpers:
   windows
 - `papers`: sort papers and rename them in a consistent way using arxiv meta
   data
+
+
+Example call to backup:
+
+```bash
+tools backup --ref E:\backup\2020-03-09 C:\Users\USER E:\backup\2020-04-12
+```
