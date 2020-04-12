@@ -17,5 +17,5 @@ Current helpers:
 Example call to backup:
 
 ```bash
-tools backup --ref E:\backup\2020-03-09 C:\Users\USER E:\backup\2020-04-12
+tools backup --ref D:\backup\2020-03-09 C:\Users\USER D:\backup\2020-04-12
 ```
