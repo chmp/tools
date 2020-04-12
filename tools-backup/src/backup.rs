@@ -19,14 +19,14 @@ pub fn run_backup(
     let target = target.as_ref();
     let reference = reference.as_ref().map(|p| p.as_ref());
 
-    let mut walker = WalkDir::new(source)
-        .min_depth(1)
-        .contents_first(false)
-        .into_iter();
+    let mut walker = WalkDir::new(source).into_iter();
 
     loop {
-        let item = match walker.next() {
-            None => break,
+        let entry = match walker.next() {
+            None => {
+                println!("No more items");
+                break;
+            }
             Some(Err(e)) => {
                 return Err(Error::from(format!(
                     "run_backup: Invalid directory entry: {}",
@@ -36,10 +36,16 @@ pub fn run_backup(
             Some(Ok(entry)) => entry,
         };
 
-        let item = item.path();
+        let item = entry.path();
+
+        if item == source {
+            continue;
+        }
+
         if ignore_spec.is_ignored(&item)? {
             println!("skip {:?}", item);
-            if item.is_dir() {
+            // NOTE: for some reason this cannot be based on item.is_dir()
+            if entry.file_type().is_dir() {
                 walker.skip_current_dir();
             }
             continue;
@@ -49,6 +55,12 @@ pub fn run_backup(
             .map_err(|e| format!("Cannot determine relative path: {}", e))?;
         let target_item = target.join(&rel_item);
         let reference_item = reference.map(|p| p.join(&rel_item));
+
+        // NOTE: the directories are still processed by walkdir
+        if target_item.exists() {
+            println!("SKIP {:?} [exists]", item);
+            continue;
+        }
 
         backup_item(item, target_item, reference_item)?;
     }
