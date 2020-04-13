@@ -12,10 +12,12 @@ Current helpers:
   windows
 - `papers`: sort papers and rename them in a consistent way using arxiv meta
   data
+- `tags`: an interactive tag browser for a collection of markdown documents
 
 
-Example call to backup:
+Example calls:
 
 ```bash
 tools backup --ref D:\backup\2020-03-09 C:\Users\USER D:\backup\2020-04-12
+tools tags C:\Users\USER\Notes
 ```
