@@ -11,3 +11,8 @@ walkdir = "2"
 regex = "1"
 lazy_static = "1.4.0"
 tools-utils = { path = "../tools-utils" }
+
+[dependencies.cursive]
+version = "0.14"
+default-features = false
+features = ["crossterm-backend"]

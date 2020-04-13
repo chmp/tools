@@ -1,27 +1,119 @@
-use std::{
-    collections::HashMap,
-    env,
-    fs::File,
-    io::{BufRead, BufReader},
-    path::{Path, PathBuf},
+mod markdown_tags;
+mod tag_list;
+mod utils;
+
+use std::{env, path::PathBuf, process::Command, sync::Arc};
+
+use cursive::{
+    Cursive,
+    event::Key,
+    traits::*,
+    views::{Button, EditView, LinearLayout, ListView, TextView, ViewRef},
 };
 
-use lazy_static::lazy_static;
-use regex::Regex;
-use walkdir::{DirEntry, WalkDir};
-
-use tools_utils::{Error, Result};
+use tag_list::TagList;
+use utils::Ignorable;
+use tools_utils::Result;
 
 fn main() -> Result<()> {
-    let args = env::args().collect::<Vec<_>>();
-    println!("Args: {:?}", args);
+    let args = parse_args()?;
 
-    if args.len() != 2 {
-        panic!("Wrong arguments: tag-browser DIRECTORY");
-    }
+    let mut siv = Cursive::default();
+    let cb_sink = siv.cb_sink().clone();
 
-    let root = PathBuf::from(&args[1]);
-    let tags = find_all_tags(&root);
+    let callback = move |t: Arc<TagList>| {
+        let cb: Box<dyn FnOnce(&mut Cursive) + Send> = Box::new(move |s| {
+            let search_box: ViewRef<EditView> = s.find_name("search_box").unwrap();
+            let mut list: ViewRef<ListView> = s.find_name("list").unwrap();
+
+            let entries = t.filter(search_box.get_content().as_ref());
+
+            list.clear();
+            for entry in entries {
+                let title = format!(
+                    "@{}: {}#{}",
+                    entry.tag,
+                    entry
+                        .path
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("?"),
+                    entry.section
+                );
+                let tag = "";
+                let mut target = entry.path.into_os_string();
+                target.push(":");
+                target.push(entry.line.to_string());
+
+                list.add_child(
+                    tag,
+                    Button::new(title, move |_s| {
+                        Command::new("cmd")
+                            .arg("/C")
+                            .arg("code.cmd")
+                            .arg("-g")
+                            .arg(&target)
+                            .spawn()
+                            .unwrap()
+                            .wait()
+                            .unwrap();
+                    }),
+                );
+            }
+        });
+
+        cb_sink.send(cb).unwrap();
+    };
+
+    let tag_list = TagList::new(&args.root, callback);
+    let layout = LinearLayout::vertical()
+        .child(TextView::new(format!("root: {:?}", args.root)))
+        .child(
+            EditView::new()
+                .with(|edit_view| {
+                    let tag_list = tag_list.clone();
+                    edit_view.set_on_edit(move |_, _, _| tag_list.update());
+                    edit_view.set_on_submit(|s, _| s.focus_name("list").ignore())
+                })
+                .with_name("search_box"),
+        )
+        .child(
+            LinearLayout::horizontal()
+                .child(Button::new("Refresh", |_s| {}))
+                .child(Button::new("Quit", |s| s.quit())),
+        )
+        .child(ListView::new().with_name("list"));
+
+    siv.add_layer(layout);
+    siv.add_global_callback('q', |s| s.quit());
+    siv.add_global_callback(Key::Esc, |s| s.focus_name("search_box").ignore());
+
+    tag_list.update();
+
+    siv.run();
+
+    Ok(())
+}
+
+fn parse_args() -> Result<Arguments> {
+    let root = env::args()
+        .nth(1)
+        .map(PathBuf::from)
+        .ok_or_else(|| "Wrong arguments. Usage: tools tags DIRECTORY")?;
+    let result = Arguments { root };
+
+    Ok(result)
+}
+
+struct Arguments {
+    root: PathBuf,
+}
+
+/*
+fn old_main() -> Result<()> {
+    let args = parse_args()?;
+
+    let tags = markdown_tags::find_all_tags(&args.root);
     let mut tags_by_name = HashMap::<String, Vec<TaggedEntry>>::new();
 
     for tag in tags {
@@ -38,124 +130,4 @@ fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn sorted(tags_by_name: HashMap<String, Vec<TaggedEntry>>) -> Vec<(String, Vec<TaggedEntry>)> {
-    let mut result = tags_by_name.into_iter().collect::<Vec<_>>();
-    result.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
-    result
-}
-
-// TODO: use path instead of str
-fn find_all_tags(root: &Path) -> impl Iterator<Item = Result<TaggedEntry>> {
-    let mut path_iter = collect_mardown_documents(root);
-    let mut current_tags: Option<Vec<TaggedEntry>> = None;
-
-    std::iter::from_fn(move || -> Option<Result<TaggedEntry>> {
-        loop {
-            if current_tags.is_none() {
-                let path = match path_iter.next()? {
-                    Err(e) => return Some(Err(e)),
-                    Ok(path) => path,
-                };
-
-                let tags = match parse_file(&path) {
-                    Err(e) => return Some(Err(e)),
-                    Ok(tags) => tags,
-                };
-
-                current_tags = Some(tags);
-            }
-            let current_tags_vec = current_tags.as_mut().unwrap();
-
-            let tag = match current_tags_vec.pop() {
-                None => {
-                    current_tags = None;
-                    continue;
-                }
-                Some(tag) => tag,
-            };
-            return Some(Ok(tag));
-        }
-    })
-}
-
-fn collect_mardown_documents(root: &Path) -> impl Iterator<Item = Result<PathBuf>> {
-    fn is_non_hidden(entry: &DirEntry) -> bool {
-        entry
-            .file_name()
-            .to_str()
-            .map(|s| !s.starts_with('.'))
-            .unwrap_or(true)
-    }
-    let mut walker = WalkDir::new(root).into_iter().filter_entry(is_non_hidden);
-    std::iter::from_fn(move || -> Option<Result<PathBuf>> {
-        loop {
-            let entry = walker.next()?;
-
-            let entry = match entry {
-                Err(e) => return Some(Err(Error::from(format!("Cannot read dir entry: {}", e)))),
-                Ok(entry) => entry,
-            };
-
-            let is_markdown_file = entry
-                .file_name()
-                .to_str()
-                .map(|s| s.ends_with(".md"))
-                .unwrap_or(false);
-
-            if !is_markdown_file {
-                continue;
-            }
-            let result = entry.path().to_owned();
-            return Some(Ok(result));
-        }
-    })
-}
-
-fn parse_file(path: &Path) -> Result<Vec<TaggedEntry>> {
-    lazy_static! {
-        static ref TAG_PATTERN: Regex =
-            Regex::new(r"(^|\s)@(?P<tag>[^\s:]*)(:(?P<value>[^\s]*))?").unwrap();
-    }
-
-    let mut result = Vec::<TaggedEntry>::new();
-    let mut section = String::from("");
-
-    let file = File::open(path).map_err(|e| format!("parse_file: could not open file: {}", e))?;
-    let reader = BufReader::new(file);
-
-    for line in reader.lines() {
-        let line = line.map_err(|e| format!("parse_file: could not read line: {}", e))?;
-        if line.starts_with('#') {
-            section = line.trim_matches('#').trim().to_owned();
-        } else if line.contains('@') {
-            for cap in TAG_PATTERN.captures_iter(&line) {
-                let tag = &cap["tag"];
-                let value = cap.name("value").map(|m| m.as_str());
-                result.push(TaggedEntry::new(path, &section, tag, value));
-            }
-        }
-    }
-
-    Ok(result)
-}
-
-#[derive(Debug, Clone)]
-struct TaggedEntry {
-    path: PathBuf,
-    section: String,
-    tag: String,
-    value: Option<String>,
-}
-
-impl TaggedEntry {
-    fn new(path: &Path, section: &str, tag: &str, value: Option<&str>) -> Self {
-        Self {
-            path: path.to_owned(),
-            section: section.to_owned(),
-            tag: tag.to_owned(),
-            value: value.map(|s| s.to_owned()),
-        }
-    }
-}
+}*/
