@@ -5,15 +5,16 @@ mod utils;
 use std::{env, path::PathBuf, process::Command, sync::Arc};
 
 use cursive::{
-    Cursive,
     event::Key,
     traits::*,
     views::{Button, EditView, LinearLayout, ListView, TextView, ViewRef},
+    Cursive,
 };
+use cursive_aligned_view::Alignable;
 
 use tag_list::TagList;
-use utils::Ignorable;
 use tools_utils::Result;
+use utils::Ignorable;
 
 fn main() -> Result<()> {
     let args = parse_args()?;
@@ -57,7 +58,8 @@ fn main() -> Result<()> {
                             .unwrap()
                             .wait()
                             .unwrap();
-                    }),
+                    })
+                    .align_center_left(),
                 );
             }
         });
@@ -83,6 +85,8 @@ fn main() -> Result<()> {
                 .child(Button::new("Quit", |s| s.quit())),
         )
         .child(ListView::new().with_name("list"));
+
+    let layout = layout.align_top_left();
 
     siv.add_layer(layout);
     siv.add_global_callback('q', |s| s.quit());

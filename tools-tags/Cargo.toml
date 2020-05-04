@@ -12,6 +12,8 @@ regex = "1"
 lazy_static = "1.4.0"
 tools-utils = { path = "../tools-utils" }
 
+cursive-aligned-view = "^0"
+
 [dependencies.cursive]
 version = "0.14"
 default-features = false
